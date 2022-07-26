@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "moduleResolution": "node",
+        "sourceMap": false,
+        "lib": [
+            "ES2015",
+            "ES6",
+            "DOM"
+        ]
+    },
+    "exclude": [
+        "node_modules",
+    ]
+}

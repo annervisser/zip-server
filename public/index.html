@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Zip Server</title>
+    <base href="/">
+    <style>
+        html, body {
+
+            width: 100%;
+            height: 100%;
+
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column
+        }
+
+        #iframe-container {
+            flex: 1;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <label for="zipUrl">URL to zip file: </label>
+    <input type="text" id="zipUrl" name="zipUrl">
+    <button id="load">Load</button>
+</div>
+
+<!--<iframe src="./worker"></iframe>-->
+<div id="iframe-container"></div>
+
+<script src="./client/index.js"></script>
+</body>
+</html>
