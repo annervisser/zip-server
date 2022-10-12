@@ -51,10 +51,45 @@ self.onmessage = async (message) => {
 
 // Answer by querying the cache. If fail, go to the network.
 self.onfetch = function (event) {
-    console.log('onfetch', event.request.url);
+    const request = event.request;
+    console.log('onfetch', {
+        url: request.url,
+        referrer: request.referrer,
+    });
+    if (request.url.startsWith(self.registration.scope)) {
+        const url = new URL(request.url);
+        const scopePath = new URL(self.registration.scope).pathname;
+        // const relativePath = url.pathname.substring(scopePath.length - 1);
+
+        const referrerPath = new URL(request.referrer).pathname;
+        const relativePath = url.pathname.substring(referrerPath.length - 1);
+
+        console.log('relative', relativePath);
+        const searchString = `/trace`;
+        if (relativePath.startsWith(searchString)) {
+            const path = relativePath.substring(searchString.length);
+            event.respondWith(new Response(`<!doctype html>
+<html lang="en">
+<body>
+<script>
+    (async function () {
+        const response = await fetch(new URL(document.location.href).searchParams.get('trace'));
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        document.location.href = document.location.origin + '/trace/?trace=' + url;
+    })();
+</script>
+</body>
+</html>
+`, {headers: {'Content-Type': 'text/html'}}));
+
+            return;
+        }
+    }
+
     event.respondWith(openCache().then(function (cache) {
-        return cache.match(event.request, {ignoreSearch: true}).then(function (response) {
-            return response || fetch(event.request);
+        return cache.match(request, {ignoreSearch: true}).then(function (response) {
+            return response || fetch(request);
         });
     }));
 };
@@ -66,6 +101,9 @@ async function replaceCache(url: string) {
     const entries = await reader.getEntries();
     await caches.delete('cache-from-zip');
     await Promise.all(entries.map(entry => cacheEntry(entry)));
+
+    const zipfile = entries.find(e => e.directory === false && e.filename.endsWith('.zip'));
+
     console.log('Installing', entries.length, 'files from zip');
     await self.skipWaiting();
 }
@@ -80,23 +118,30 @@ async function cacheEntry(entry: zip.Entry): Promise<void> {
     const data = await entry.getData(new zip.BlobWriter());
     const cache = await openCache();
     const location = getLocation(entry.filename);
+    const mimeType = getContentType(entry.filename);
     const response = new Response(data, {
         headers: {
             // As the zip says nothing about the nature of the file, we extract
             // this information from the file name.
-            'Content-Type': getContentType(entry.filename)
+            'Content-Type': mimeType
         }
     });
+
+    // if (entry.filename.endsWith('.zip')) {
+    //     const blobUrl = URL.createObjectURL(data);
+    //     console.log('blob url for %s: %s', entry.filename, blobUrl);
+    // }
 
     console.log('-> Caching', location,
         '(size:', entry.uncompressedSize, 'bytes)');
 
     // If the entry is the index, cache its contents for root as well.
-    if (entry.filename === 'index.html') {
+    if (entry.filename.split('/').at(-1).endsWith('index.html')) {
         // Response are one-use objects, as `.put()` consumes the data in the body
         // we need to clone the response in order to use it twice.
-        console.log('putting index.html into', getLocation())
-        await cache.put(getLocation(), response.clone());
+        const indexLocation = getLocation(entry.filename.slice(0, -'index.html'.length));
+        console.log('putting index.html into', indexLocation)
+        await cache.put(indexLocation, response.clone());
     }
 
     return await cache.put(location, response);
@@ -114,7 +159,8 @@ const contentTypesByExtension = {
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
     'html': 'text/html',
-    'htm': 'text/html'
+    'htm': 'text/html',
+    'zip': 'application/zip',
 } as const;
 
 // Return the content type of file based on the name extension
